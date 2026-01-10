@@ -32,3 +32,10 @@ cd /Users/excalibur/Desktop/dev/oxidized_gpt_oss && cargo run -- --model-path /U
 sleep 45
 pkill -f "cargo run"
 wait
+
+
+
+
+```bash
+RUST_BACKTRACE=1 cargo run -- --model-path /Users/excalibur/Desktop/dev/oxidized_gpt_oss/gpt-oss-20b-MXFP4-Q8 --max-tokens 20 --prompt "Hello, world"
+```
