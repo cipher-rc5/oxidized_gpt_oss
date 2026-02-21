@@ -217,6 +217,7 @@ ModelConverter::validate_mxfp4_accuracy(
 ## Dependencies
 
 ### Core
+
 - `objc2` 0.5 - Safe Objective-C bindings
 - `objc2-metal` 0.2 - Metal framework bindings
 - `objc2-foundation` 0.2 - Foundation framework bindings
@@ -225,11 +226,13 @@ ModelConverter::validate_mxfp4_accuracy(
 - `bytemuck` 1.14 - Safe type casting
 
 ### ML/NLP
+
 - `safetensors` 0.4 - Model loading
 - `tokenizers` 0.22 - Tokenization
 - `memmap2` 0.9 - Memory-mapped file I/O
 
 ### Utilities
+
 - `anyhow` 1.0 - Error handling
 - `serde` 1.0 - Serialization
 - `tracing` 0.1 - Logging
@@ -238,16 +241,18 @@ ModelConverter::validate_mxfp4_accuracy(
 ## Build Configuration
 
 ### Release Profile
+
 ```toml
 [profile.release]
-opt-level = 3           # Maximum optimization
-lto = "fat"             # Full link-time optimization
-codegen-units = 1       # Single codegen unit
-panic = "abort"         # Smaller binary size
-strip = true            # Strip symbols
+opt-level = 3 # Maximum optimization
+lto = "fat" # Full link-time optimization
+codegen-units = 1 # Single codegen unit
+panic = "abort" # Smaller binary size
+strip = true # Strip symbols
 ```
 
 ### Build Flags
+
 ```bash
 export RUSTFLAGS="-C target-cpu=native -C opt-level=3"
 cargo build --release --target aarch64-apple-darwin
@@ -256,16 +261,19 @@ cargo build --release --target aarch64-apple-darwin
 ## Testing
 
 ### Unit Tests
+
 ```bash
 cargo test --lib
 ```
 
 ### Integration Tests
+
 ```bash
 cargo test --test integration_tests
 ```
 
 ### Benchmarks
+
 ```bash
 cargo run --release --example benchmark
 ```
@@ -273,16 +281,19 @@ cargo run --release --example benchmark
 ## Performance Tuning
 
 ### GPU Utilization
+
 ```bash
 sudo powermetrics --samplers gpu_power -i 1000
 ```
 
 ### Memory Pressure
+
 ```bash
 memory_pressure
 ```
 
 ### Thermal Monitoring
+
 ```bash
 sudo powermetrics --samplers thermal -i 1000
 ```

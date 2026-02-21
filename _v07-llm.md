@@ -1,4 +1,5 @@
 # Directory Structure
+
 ```
 src/
   backend/
@@ -26,6 +27,7 @@ Cargo.toml
 # Files
 
 ## File: src/backend/metal/kernels/kernels.metal
+
 ```
 #include <metal_stdlib>
 using namespace metal;
@@ -403,17 +405,16 @@ kernel void rope(
 ```
 
 ## File: src/backend/metal/kernels/mod.rs
+
 ```rust
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2_foundation::{NSError, NSString};
-use objc2_metal::{
-    MTLComputePipelineState, MTLDevice, MTLLibrary,
-};
+use objc2_metal::{MTLComputePipelineState, MTLDevice, MTLLibrary};
 
 /// Metal shader source that gets embedded into the binary at compile time.
 pub const SOURCE: &str = include_str!("kernels.metal");
@@ -456,8 +457,7 @@ impl MetalKernel {
 pub struct KernelManager {
     device: Retained<ProtocolObject<dyn MTLDevice>>,
     library: Retained<ProtocolObject<dyn MTLLibrary>>,
-    pipelines:
-        Mutex<HashMap<MetalKernel, Retained<ProtocolObject<dyn MTLComputePipelineState>>>>,
+    pipelines: Mutex<HashMap<MetalKernel, Retained<ProtocolObject<dyn MTLComputePipelineState>>>>,
 }
 
 impl KernelManager {
@@ -521,8 +521,9 @@ impl KernelManager {
 ```
 
 ## File: src/backend/metal/metal_impl.rs
+
 ```rust
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2_metal::{
@@ -832,6 +833,7 @@ impl Clone for MetalBuffer {
 ```
 
 ## File: src/backend/metal/mod.rs
+
 ```rust
 pub mod kernels;
 pub mod metal_impl;
@@ -840,11 +842,13 @@ pub use metal_impl::{MetalBackend, MetalBuffer, MetalCompute, MetalDevice};
 ```
 
 ## File: src/backend/mod.rs
+
 ```rust
 pub mod metal;
 ```
 
 ## File: src/benchmark.rs
+
 ```rust
 use std::time::{Duration, Instant};
 use tracing::info;
@@ -935,6 +939,7 @@ impl PerformanceMetrics {
 ```
 
 ## File: src/config.rs
+
 ```rust
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -1128,6 +1133,7 @@ impl ModelConfig {
 ```
 
 ## File: src/convert.rs
+
 ```rust
 use crate::dtype::MxBlock;
 use anyhow::{Context, Result};
@@ -1303,6 +1309,7 @@ impl ModelConverter {
 ```
 
 ## File: src/dtype.rs
+
 ```rust
 use bytemuck::{Pod, Zeroable};
 use half::f16;
@@ -1612,8 +1619,9 @@ mod tests {
 ```
 
 ## File: src/inference.rs
+
 ```rust
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::sync::Arc;
 use tokenizers::Tokenizer;
 use tracing::{debug, info};
@@ -2863,6 +2871,7 @@ mod rand {
 ```
 
 ## File: src/lib.rs
+
 ```rust
 pub mod backend;
 pub mod benchmark;
@@ -2877,7 +2886,7 @@ pub mod utils;
 
 pub use backend::metal::{MetalBuffer, MetalCompute, MetalDevice};
 pub use config::{MoEConfig, ModelConfig, RoutingStrategy};
-pub use dtype::{MxBlock, MxFp4, F6E2M3, F6E3M2, F8E8M0};
+pub use dtype::{F6E2M3, F6E3M2, F8E8M0, MxBlock, MxFp4};
 pub use inference::{GenerationConfig, InferenceEngine};
 pub use model::GPTModel;
 
@@ -2910,13 +2919,14 @@ impl GPTRuntime {
 ```
 
 ## File: src/main.rs
+
 ```rust
 use anyhow::Result;
 use clap::Parser;
 use oxidized_gpt_oss::{GenerationConfig, InferenceEngine, MetalDevice, ModelConfig};
 use std::path::PathBuf;
 use tokenizers::Tokenizer;
-use tracing::{info, Level};
+use tracing::{Level, info};
 use tracing_subscriber;
 
 #[derive(Parser, Debug)]
@@ -3505,6 +3515,7 @@ fn main() -> Result<()> {
 ```
 
 ## File: src/memory.rs
+
 ```rust
 //! Memory tracking utilities tailored for the Metal backend.
 //!
@@ -3696,6 +3707,7 @@ impl MemoryManager {
 ```
 
 ## File: src/model.rs
+
 ```rust
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -3972,7 +3984,10 @@ impl GPTModel {
             let calculated_intermediate_size = gate_proj_data_size / (num_experts * hidden_size);
 
             if configured_intermediate != calculated_intermediate_size {
-                info!("Warning: intermediate_size in config.json ({}) does not match calculated intermediate_size ({}). Using calculated size.", configured_intermediate, calculated_intermediate_size);
+                info!(
+                    "Warning: intermediate_size in config.json ({}) does not match calculated intermediate_size ({}). Using calculated size.",
+                    configured_intermediate, calculated_intermediate_size
+                );
             }
 
             let intermediate_size = calculated_intermediate_size;
@@ -4651,6 +4666,7 @@ use crate::utils::*;
 ```
 
 ## File: src/moe.rs
+
 ```rust
 use crate::backend::metal::{MetalBuffer, MetalCompute};
 use crate::model::MLP;
@@ -4751,6 +4767,7 @@ impl MoELayer {
 ```
 
 ## File: src/utils.rs
+
 ```rust
 // file: src/utils.rs
 // description: Utility functions for tensor operations with bounds checking and dimension validation
@@ -5011,6 +5028,7 @@ pub fn dequantize_buffer(
 ```
 
 ## File: Cargo.toml
+
 ```toml
 [package]
 name = "oxidized_gpt_oss"

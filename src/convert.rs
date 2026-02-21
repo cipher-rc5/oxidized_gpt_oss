@@ -1,3 +1,8 @@
+// file: src/convert.rs
+// description: Offline utilities for F16 to MXFP4 conversion and quantization validation.
+// author: cipher-rc5
+// created: 2026-02-21
+// modified: 2026-02-21
 use crate::dtype::MxBlock;
 use anyhow::{Context, Result};
 use half::f16;

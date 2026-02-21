@@ -1,8 +1,8 @@
-//! Memory tracking utilities tailored for the Metal backend.
-//!
-//! The original Candle-based implementation tracked tensors directly; here we
-//! keep lightweight accounting so we can surface peak usage and detect MoE
-//! hotspots without touching the performance-critical kernels.
+// file: src/memory.rs
+// description: Memory usage tracking, pooling, and cleanup utilities for runtime execution.
+// author: cipher-rc5
+// created: 2026-02-21
+// modified: 2026-02-21
 
 use anyhow::Result;
 use std::collections::HashMap;

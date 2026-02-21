@@ -32,3 +32,6 @@
 
 //     Ok(())
 // }
+fn main() {
+    println!("example disabled: benchmark scaffold");
+}

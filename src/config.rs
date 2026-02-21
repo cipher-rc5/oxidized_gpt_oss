@@ -1,7 +1,19 @@
+// file: src/config.rs
+// description: Model configuration parsing and validation helpers for gpt-oss checkpoints.
+// author: cipher-rc5
+// created: 2026-02-21
+// modified: 2026-02-21
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::fs::File;
 use std::path::Path;
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AttentionLayerType {
+    SlidingAttention,
+    FullAttention,
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ModelConfig {
@@ -32,6 +44,17 @@ pub struct ModelConfig {
     #[serde(default)]
     pub use_swiglu: bool,
     pub routing_strategy: Option<String>,
+
+    #[serde(default)]
+    pub layer_types: Option<Vec<AttentionLayerType>>,
+    #[serde(default)]
+    pub head_dim: Option<usize>,
+    #[serde(default)]
+    pub sliding_window: Option<usize>,
+    #[serde(default)]
+    pub rope_theta: Option<f32>,
+    #[serde(default)]
+    pub rms_norm_eps: Option<f32>,
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +91,40 @@ fn default_max_sequence_length() -> usize {
 }
 
 impl ModelConfig {
+    pub fn gpt_oss_20b() -> Self {
+        let layer_types = (0..24)
+            .map(|i| {
+                if i % 2 == 0 {
+                    AttentionLayerType::SlidingAttention
+                } else {
+                    AttentionLayerType::FullAttention
+                }
+            })
+            .collect();
+
+        Self {
+            num_layers: 24,
+            hidden_size: 2880,
+            num_attention_heads: 64,
+            num_key_value_heads: Some(8),
+            intermediate_size: Some(2880),
+            vocab_size: 201_088,
+            tie_word_embeddings: false,
+            max_sequence_length: 131_072,
+            num_experts: Some(32),
+            experts_per_token: Some(4),
+            expert_capacity_factor: None,
+            moe_layers: None,
+            use_swiglu: true,
+            routing_strategy: Some("topk".to_string()),
+            layer_types: Some(layer_types),
+            head_dim: Some(64),
+            sliding_window: Some(128),
+            rope_theta: Some(150_000.0),
+            rms_norm_eps: Some(1e-5),
+        }
+    }
+
     pub fn load_from_path(path: &Path) -> Result<Self> {
         let config_path = path.join("config.json");
         let file = File::open(&config_path)
@@ -75,6 +132,55 @@ impl ModelConfig {
         let config: ModelConfig = serde_json::from_reader(file)
             .with_context(|| format!("Failed to parse config.json at {:?}", config_path))?;
         Ok(config)
+    }
+
+    pub fn validate_against_official_20b(&self) -> Result<()> {
+        anyhow::ensure!(
+            self.num_layers == 24,
+            "expected num_layers=24 for gpt-oss-20b, got {}",
+            self.num_layers
+        );
+        anyhow::ensure!(
+            self.hidden_size == 2880,
+            "expected hidden_size=2880 for gpt-oss-20b, got {}",
+            self.hidden_size
+        );
+        anyhow::ensure!(
+            self.num_attention_heads == 64,
+            "expected num_attention_heads=64 for gpt-oss-20b, got {}",
+            self.num_attention_heads
+        );
+        anyhow::ensure!(
+            self.num_key_value_heads.unwrap_or(0) == 8,
+            "expected num_key_value_heads=8 for gpt-oss-20b, got {:?}",
+            self.num_key_value_heads
+        );
+        anyhow::ensure!(
+            self.num_experts.unwrap_or(0) == 32,
+            "expected num_experts=32 for gpt-oss-20b, got {:?}",
+            self.num_experts
+        );
+        anyhow::ensure!(
+            self.experts_per_token.unwrap_or(0) == 4,
+            "expected experts_per_token=4 for gpt-oss-20b, got {:?}",
+            self.experts_per_token
+        );
+        anyhow::ensure!(
+            self.vocab_size == 201_088,
+            "expected vocab_size=201088 for gpt-oss-20b, got {}",
+            self.vocab_size
+        );
+        anyhow::ensure!(
+            self.max_sequence_length == 131_072,
+            "expected max_sequence_length=131072 for gpt-oss-20b, got {}",
+            self.max_sequence_length
+        );
+        anyhow::ensure!(
+            (self.rope_theta.unwrap_or_default() - 150_000.0).abs() < f32::EPSILON,
+            "expected rope_theta=150000.0 for gpt-oss-20b, got {:?}",
+            self.rope_theta
+        );
+        Ok(())
     }
 
     pub fn total_params(&self) -> u64 {

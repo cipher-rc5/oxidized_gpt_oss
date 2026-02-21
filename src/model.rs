@@ -1,12 +1,20 @@
+// file: src/model.rs
+// description: GPT model scaffolding, layer loading, and forward-pass execution over backend buffers.
+// author: cipher-rc5
+// created: 2026-02-21
+// modified: 2026-02-21
 use anyhow::{Context, Result};
+use candle_core::{DType, Device};
+use half::{bf16, f16};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 use tracing::{debug, info};
 
-use crate::backend::metal::{MetalBuffer, MetalCompute, MetalDevice};
-use crate::config::ModelConfig;
+use crate::backend::metal::{MetalBuffer, MetalCompute, MetalDevice, StorageMode};
+use crate::config::{AttentionLayerType, ModelConfig};
+use crate::loader::ModelCheckpoint;
 use crate::moe::MoELayer;
 
 pub struct GPTModel {
@@ -43,6 +51,16 @@ pub struct Attention {
     num_heads: usize,
     head_dim: usize,
     hidden_size: usize,
+    sliding_window: Option<usize>,
+    cache: Mutex<AttentionCache>,
+}
+
+#[derive(Default)]
+struct AttentionCache {
+    k: Vec<f32>,
+    v: Vec<f32>,
+    len: usize,
+    kv_dim: usize,
 }
 
 pub struct MLP {
@@ -72,6 +90,11 @@ fn weight_map_cache() -> &'static Mutex<HashMap<PathBuf, Arc<HashMap<String, Str
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+fn checkpoint_cache() -> &'static Mutex<HashMap<PathBuf, Arc<ModelCheckpoint>>> {
+    static CACHE: OnceLock<Mutex<HashMap<PathBuf, Arc<ModelCheckpoint>>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 impl GPTModel {
     pub fn load_from_safetensors(
         path: &Path,
@@ -79,6 +102,8 @@ impl GPTModel {
         device: Arc<MetalDevice>,
     ) -> Result<Self> {
         info!("Loading model from {:?}", path);
+
+        let _ = Self::load_checkpoint(path);
 
         let compute = MetalCompute::new(Arc::clone(&device))?;
 
@@ -171,29 +196,18 @@ impl GPTModel {
             num_kv_heads
         );
 
-        let head_dim = config.hidden_size / config.num_attention_heads;
         let configured_intermediate = config.intermediate_size.unwrap_or(config.hidden_size * 4);
 
-        let q_biases = Self::load_tensor_optional(
-            path,
-            device,
-            &format!("{}.self_attn.q_proj.biases", prefix),
-        )?;
-        let k_biases = Self::load_tensor_optional(
-            path,
-            device,
-            &format!("{}.self_attn.k_proj.biases", prefix),
-        )?;
-        let v_biases = Self::load_tensor_optional(
-            path,
-            device,
-            &format!("{}.self_attn.v_proj.biases", prefix),
-        )?;
-        let o_biases = Self::load_tensor_optional(
-            path,
-            device,
-            &format!("{}.self_attn.o_proj.biases", prefix),
-        )?;
+        let q_biases = None;
+        let k_biases = None;
+        let v_biases = None;
+        let o_biases = None;
+
+        let hidden_size = config.hidden_size;
+        let q_output_dim = (q_proj.size() / 2) / hidden_size;
+        let k_output_dim = (k_proj.size() / 2) / hidden_size;
+        let inferred_head_dim = (k_output_dim / num_kv_heads).max(1);
+        let inferred_num_heads = (q_output_dim / inferred_head_dim).max(1);
 
         let attention = Attention {
             q_proj,
@@ -212,9 +226,14 @@ impl GPTModel {
             // k_group_size: 64,
             // v_group_size: 64,
             // o_group_size: 64,
-            num_heads: config.num_attention_heads,
-            head_dim,
+            num_heads: inferred_num_heads,
+            head_dim: inferred_head_dim,
             hidden_size: config.hidden_size,
+            sliding_window: match config.layer_types.as_ref().and_then(|v| v.get(layer_idx)) {
+                Some(AttentionLayerType::SlidingAttention) => config.sliding_window,
+                _ => None,
+            },
+            cache: Mutex::new(AttentionCache::default()),
         };
 
         let mlp_or_moe = if config.is_moe_layer(layer_idx) {
@@ -273,7 +292,10 @@ impl GPTModel {
             let calculated_intermediate_size = gate_proj_data_size / (num_experts * hidden_size);
 
             if configured_intermediate != calculated_intermediate_size {
-                info!("Warning: intermediate_size in config.json ({}) does not match calculated intermediate_size ({}). Using calculated size.", configured_intermediate, calculated_intermediate_size);
+                info!(
+                    "Warning: intermediate_size in config.json ({}) does not match calculated intermediate_size ({}). Using calculated size.",
+                    configured_intermediate, calculated_intermediate_size
+                );
             }
 
             let intermediate_size = calculated_intermediate_size;
@@ -414,6 +436,18 @@ impl GPTModel {
     }
 
     fn load_tensor(path: &Path, device: &Arc<MetalDevice>, name: &str) -> Result<MetalBuffer> {
+        if let Ok(checkpoint) = Self::load_checkpoint(path)
+            && let Some(buffer) = Self::maybe_load_q2_packed_tensor(device, &checkpoint, name)?
+        {
+            return Ok(buffer);
+        }
+
+        if let Ok(checkpoint) = Self::load_checkpoint(path)
+            && let Ok(tensor) = checkpoint.get(name)
+        {
+            return Self::tensor_to_buffer(device, tensor);
+        }
+
         let safetensors_path = path.join("model.safetensors");
         if safetensors_path.exists() {
             Self::load_tensor_from_file(&safetensors_path, device, name)
@@ -475,7 +509,7 @@ impl GPTModel {
             .with_context(|| format!("Tensor {} not found", name))?;
 
         let data = tensor.data();
-        let buffer = device.allocate_buffer(data.len(), objc2_metal::MTLStorageMode::Shared)?;
+        let buffer = device.allocate_buffer(data.len(), StorageMode::Shared)?;
         buffer.write_data(data)?;
         Ok(buffer)
     }
@@ -488,6 +522,192 @@ impl GPTModel {
         match Self::load_tensor(path, device, name) {
             Ok(buffer) => Ok(Some(buffer)),
             Err(_) => Ok(None),
+        }
+    }
+
+    fn load_checkpoint(path: &Path) -> Result<Arc<ModelCheckpoint>> {
+        let key = path.to_path_buf();
+        {
+            let cache = checkpoint_cache();
+            if let Some(cp) = cache.lock().unwrap().get(&key) {
+                return Ok(cp.clone());
+            }
+        }
+
+        let cp = Arc::new(ModelCheckpoint::load(path, &Device::Cpu)?);
+        let mut cache = checkpoint_cache().lock().unwrap();
+        cache.insert(key, cp.clone());
+        Ok(cp)
+    }
+
+    fn tensor_to_buffer(
+        device: &Arc<MetalDevice>,
+        tensor: &candle_core::Tensor,
+    ) -> Result<MetalBuffer> {
+        let flat = tensor.flatten_all()?;
+        let vals: Vec<f32> = match flat.dtype() {
+            DType::BF16 => flat
+                .to_vec1::<bf16>()?
+                .into_iter()
+                .map(|v| v.to_f32())
+                .collect(),
+            DType::F16 => flat
+                .to_vec1::<f16>()?
+                .into_iter()
+                .map(|v| v.to_f32())
+                .collect(),
+            DType::F32 => flat.to_vec1::<f32>()?,
+            DType::U8 => flat
+                .to_vec1::<u8>()?
+                .into_iter()
+                .map(|v| v as f32)
+                .collect(),
+            DType::U32 => flat
+                .to_vec1::<u32>()?
+                .into_iter()
+                .map(|v| v as f32)
+                .collect(),
+            DType::I32 => flat
+                .to_vec1::<i32>()?
+                .into_iter()
+                .map(|v| v as f32)
+                .collect(),
+            other => anyhow::bail!("unsupported tensor dtype for model load: {other:?}"),
+        };
+        buffer_from_f32(device, &vals)
+    }
+
+    fn maybe_load_q2_packed_tensor(
+        device: &Arc<MetalDevice>,
+        checkpoint: &ModelCheckpoint,
+        name: &str,
+    ) -> Result<Option<MetalBuffer>> {
+        if !name.ends_with(".weight") {
+            return Ok(None);
+        }
+
+        let scales_name = format!("{}.scales", name.trim_end_matches(".weight"));
+        let biases_name = format!("{}.biases", name.trim_end_matches(".weight"));
+
+        let Ok(weight) = checkpoint.get(name) else {
+            return Ok(None);
+        };
+        if weight.dtype() != DType::U8 {
+            return Ok(None);
+        }
+        let Ok(scales) = checkpoint.get(&scales_name) else {
+            return Ok(None);
+        };
+        let Ok(biases) = checkpoint.get(&biases_name) else {
+            return Ok(None);
+        };
+
+        let w_shape = weight.shape().dims();
+        let s_shape = scales.shape().dims();
+        let b_shape = biases.shape().dims();
+        if w_shape.len() < 2 || s_shape.len() < 2 || b_shape.len() < 2 {
+            return Ok(None);
+        }
+
+        let w_rows = w_shape[..w_shape.len() - 1].iter().product::<usize>();
+        let s_rows = s_shape[..s_shape.len() - 1].iter().product::<usize>();
+        let b_rows = b_shape[..b_shape.len() - 1].iter().product::<usize>();
+        let w_cols = *w_shape.last().unwrap();
+        let s_cols = *s_shape.last().unwrap();
+        let b_cols = *b_shape.last().unwrap();
+
+        if w_rows != s_rows || w_rows != b_rows || s_cols != b_cols {
+            return Ok(None);
+        }
+        if s_cols == 0 || w_cols == 0 || w_cols % s_cols != 0 {
+            return Ok(None);
+        }
+
+        let w_vals = Self::tensor_to_u8_vec(weight)?;
+        let s_vals = Self::tensor_to_f32_vec(scales)?;
+        let b_vals = Self::tensor_to_f32_vec(biases)?;
+
+        let packed_2bit_mode = (w_cols * 4) % 64 == 0 && (w_cols * 4) / 64 == s_cols;
+
+        let out = if packed_2bit_mode {
+            let cols = w_cols * 4;
+            let mut out = vec![0.0f32; w_rows * cols];
+            for r in 0..w_rows {
+                for c_pack in 0..w_cols {
+                    let src_idx = r * w_cols + c_pack;
+                    let byte = w_vals[src_idx];
+                    let q = [
+                        byte & 0x03,
+                        (byte >> 2) & 0x03,
+                        (byte >> 4) & 0x03,
+                        (byte >> 6) & 0x03,
+                    ];
+                    for i in 0..4 {
+                        let c = c_pack * 4 + i;
+                        let sb_idx = r * s_cols + (c / 64);
+                        out[r * cols + c] = q[i] as f32 * s_vals[sb_idx] + b_vals[sb_idx];
+                    }
+                }
+            }
+            out
+        } else {
+            // Quantization groups partition the last dimension directly.
+            let group_size = w_cols / s_cols;
+            if group_size == 0 {
+                return Ok(None);
+            }
+            let mut out = vec![0.0f32; w_rows * w_cols];
+            for r in 0..w_rows {
+                for c in 0..w_cols {
+                    let src_idx = r * w_cols + c;
+                    let sb_idx = r * s_cols + (c / group_size);
+                    out[src_idx] = w_vals[src_idx] as f32 * s_vals[sb_idx] + b_vals[sb_idx];
+                }
+            }
+            out
+        };
+
+        Ok(Some(buffer_from_f32(device, &out)?))
+    }
+
+    fn tensor_to_u8_vec(tensor: &candle_core::Tensor) -> Result<Vec<u8>> {
+        let flat = tensor.flatten_all()?;
+        match flat.dtype() {
+            DType::U8 => Ok(flat.to_vec1::<u8>()?),
+            other => anyhow::bail!("expected U8 tensor for quantized weight, got {other:?}"),
+        }
+    }
+
+    fn tensor_to_f32_vec(tensor: &candle_core::Tensor) -> Result<Vec<f32>> {
+        let flat = tensor.flatten_all()?;
+        match flat.dtype() {
+            DType::BF16 => Ok(flat
+                .to_vec1::<bf16>()?
+                .into_iter()
+                .map(|v| v.to_f32())
+                .collect()),
+            DType::F16 => Ok(flat
+                .to_vec1::<f16>()?
+                .into_iter()
+                .map(|v| v.to_f32())
+                .collect()),
+            DType::F32 => Ok(flat.to_vec1::<f32>()?),
+            DType::U8 => Ok(flat
+                .to_vec1::<u8>()?
+                .into_iter()
+                .map(|v| v as f32)
+                .collect()),
+            DType::U32 => Ok(flat
+                .to_vec1::<u32>()?
+                .into_iter()
+                .map(|v| v as f32)
+                .collect()),
+            DType::I32 => Ok(flat
+                .to_vec1::<i32>()?
+                .into_iter()
+                .map(|v| v as f32)
+                .collect()),
+            other => anyhow::bail!("unsupported tensor dtype in conversion: {other:?}"),
         }
     }
 
@@ -519,6 +739,12 @@ impl GPTModel {
         let logits = self.compute_lm_logits(&hidden_states)?;
 
         Ok(logits)
+    }
+
+    pub fn reset_kv_cache(&self) {
+        for layer in &self.layers {
+            layer.attention.clear_cache();
+        }
     }
 
     fn embed_tokens(&self, input_ids: &[u32]) -> Result<MetalBuffer> {
@@ -663,6 +889,14 @@ impl TransformerLayer {
 }
 
 impl Attention {
+    fn clear_cache(&self) {
+        let mut cache = self.cache.lock().unwrap();
+        cache.k.clear();
+        cache.v.clear();
+        cache.len = 0;
+        cache.kv_dim = 0;
+    }
+
     pub fn forward(
         &self,
         hidden_states: &MetalBuffer,
@@ -760,8 +994,30 @@ impl Attention {
             self.head_dim
         );
 
-        // Grouped query attention computation
+        // Maintain a lightweight KV cache for incremental decoding.
         let num_kv_groups = q_num_heads / kv_num_heads;
+        let mut cache = self.cache.lock().unwrap();
+        if seq_len == 1 {
+            if cache.len == 0 || cache.kv_dim != k_output_dim {
+                cache.k = k.clone();
+                cache.v = v.clone();
+                cache.len = 1;
+                cache.kv_dim = k_output_dim;
+            } else {
+                cache.k.extend_from_slice(&k);
+                cache.v.extend_from_slice(&v);
+                cache.len += 1;
+            }
+        } else {
+            cache.k = k.clone();
+            cache.v = v.clone();
+            cache.len = seq_len;
+            cache.kv_dim = k_output_dim;
+        }
+
+        let total_len = cache.len;
+        let k_all = &cache.k;
+        let v_all = &cache.v;
 
         let mut context = vec![0.0f32; seq_len * q_output_dim];
         let scale = 1.0f32 / (self.head_dim as f32).sqrt();
@@ -770,9 +1026,15 @@ impl Attention {
             let kv_head = head / num_kv_groups;
             for target in 0..seq_len {
                 let q_slice = head_slice(&q, target, head, q_num_heads, self.head_dim);
-                let mut scores = Vec::with_capacity(target + 1);
-                for source in 0..=target {
-                    let k_slice = head_slice(&k, source, kv_head, kv_num_heads, self.head_dim);
+                let absolute_target = if seq_len == 1 { total_len - 1 } else { target };
+                let source_start = if let Some(window) = self.sliding_window {
+                    absolute_target.saturating_add(1).saturating_sub(window)
+                } else {
+                    0
+                };
+                let mut scores = Vec::with_capacity(absolute_target - source_start + 1);
+                for source in source_start..=absolute_target {
+                    let k_slice = head_slice(k_all, source, kv_head, kv_num_heads, self.head_dim);
                     let mut dot = 0.0f32;
                     for i in 0..self.head_dim {
                         dot += q_slice[i] * k_slice[i];
@@ -787,8 +1049,8 @@ impl Attention {
                     *val = 0.0;
                 }
 
-                for (source, &weight) in (0..=target).zip(scores.iter()) {
-                    let v_slice = head_slice(&v, source, kv_head, kv_num_heads, self.head_dim);
+                for (source, &weight) in (source_start..=absolute_target).zip(scores.iter()) {
+                    let v_slice = head_slice(v_all, source, kv_head, kv_num_heads, self.head_dim);
                     for i in 0..self.head_dim {
                         out_slice[i] += weight * v_slice[i];
                     }
@@ -932,14 +1194,17 @@ impl LayerNorm {
     ) -> Result<MetalBuffer> {
         let output = compute
             .device
-            .allocate_buffer(hidden_states.size(), objc2_metal::MTLStorageMode::Shared)?;
+            .allocate_buffer(hidden_states.size(), StorageMode::Shared)?;
+
+        let total_elements = hidden_states.size() / 2;
+        let batch_size = (total_elements / hidden_size).max(1);
 
         compute.layernorm(
             hidden_states,
             &output,
             &self.gamma,
             &self.beta,
-            1,
+            batch_size,
             hidden_size,
             self.eps,
         )?;

@@ -1,11 +1,12 @@
 // file: src/utils.rs
-// description: Utility functions for tensor operations with bounds checking and dimension validation
-// reference: Panic at src/utils.rs:41 - matmul index out of bounds, original bias error at src/utils.rs:85
+// description: Utility helpers for buffer conversion, tensor math, and shape-safe operations.
+// author: cipher-rc5
+// created: 2026-02-21
+// modified: 2026-02-21
 
-use crate::backend::metal::{MetalBuffer, MetalDevice};
+use crate::backend::metal::{MetalBuffer, MetalDevice, StorageMode};
 use anyhow::Result;
 use half::f16;
-use objc2_metal::MTLStorageMode;
 
 pub fn buffer_to_f32_vec(buffer: &MetalBuffer) -> Result<Vec<f32>> {
     let mut bytes = vec![0u8; buffer.size()];
@@ -27,12 +28,14 @@ pub fn buffer_from_f32(device: &std::sync::Arc<MetalDevice>, data: &[f32]) -> Re
     for &value in data {
         bytes.extend_from_slice(&f16::from_f32(value).to_bits().to_le_bytes());
     }
-    let buffer = device.allocate_buffer(bytes.len(), MTLStorageMode::Shared)?;
+    let buffer = device.allocate_buffer(bytes.len(), StorageMode::Shared)?;
     buffer.write_data(&bytes)?;
     Ok(buffer)
 }
 
 pub fn matmul(a: &[f32], b: &[f32], m: usize, k: usize, n: usize) -> Vec<f32> {
+    // Computes A(m x k) * B^T, where B is stored as (n x k).
+    // This matches common checkpoint layout for linear weights: (out_features, in_features).
     // Validate dimensions before computation
     let expected_a_len = m * k;
     let expected_b_len = k * n;
@@ -78,7 +81,7 @@ pub fn matmul(a: &[f32], b: &[f32], m: usize, k: usize, n: usize) -> Vec<f32> {
             let mut sum = 0.0f32;
             for inner in 0..k {
                 let a_idx = row * k + inner;
-                let b_idx = inner * n + col;
+                let b_idx = col * k + inner;
                 sum += a[a_idx] * b[b_idx];
             }
             output[row * n + col] = sum;

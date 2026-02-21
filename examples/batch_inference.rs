@@ -54,3 +54,6 @@
 
 //     Ok(())
 // }
+fn main() {
+    println!("example disabled: batch_inference scaffold");
+}

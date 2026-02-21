@@ -1,3 +1,8 @@
+// file: src/moe.rs
+// description: Mixture-of-Experts routing and weighted expert aggregation runtime.
+// author: cipher-rc5
+// created: 2026-02-21
+// modified: 2026-02-21
 use crate::backend::metal::{MetalBuffer, MetalCompute};
 use crate::model::MLP;
 use crate::utils::{buffer_from_f32, buffer_to_f32_vec, matmul, softmax_inplace};
@@ -41,7 +46,7 @@ impl MoELayer {
             router_output_dim,
         );
 
-        // 2-select top-k experts
+        // 2-select top-4 experts
         let mut expert_indices = Vec::with_capacity(seq_len);
         let mut expert_weights = Vec::with_capacity(seq_len);
         for i in 0..seq_len {
@@ -49,14 +54,15 @@ impl MoELayer {
             let mut sorted_logits = logits.iter().enumerate().collect::<Vec<_>>();
             sorted_logits.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
 
+            let top_k = 4.min(sorted_logits.len());
             let top_k_indices = sorted_logits
                 .iter()
-                .take(2)
+                .take(top_k)
                 .map(|(i, _)| *i)
                 .collect::<Vec<_>>();
             let top_k_logits = sorted_logits
                 .iter()
-                .take(2)
+                .take(top_k)
                 .map(|(_, l)| **l)
                 .collect::<Vec<_>>();
 
@@ -73,7 +79,7 @@ impl MoELayer {
             let token_hidden_state = &hidden[i * hidden_size..(i + 1) * hidden_size];
             let mut expert_output = vec![0.0f32; hidden_size];
 
-            for j in 0..2 {
+            for j in 0..expert_indices[i].len() {
                 let expert_idx = expert_indices[i][j];
                 let expert = &self.experts[expert_idx];
                 let weight = expert_weights[i][j];

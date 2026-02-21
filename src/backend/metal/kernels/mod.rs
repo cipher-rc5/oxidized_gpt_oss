@@ -1,13 +1,16 @@
+// file: src/backend/metal/kernels/mod.rs
+// description: Embedded Metal shader registry and compute pipeline cache.
+// author: cipher-rc5
+// created: 2026-02-21
+// modified: 2026-02-21
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2_foundation::{NSError, NSString};
-use objc2_metal::{
-    MTLComputePipelineState, MTLDevice, MTLLibrary,
-};
+use objc2_metal::{MTLComputePipelineState, MTLDevice, MTLLibrary};
 
 /// Metal shader source that gets embedded into the binary at compile time.
 pub const SOURCE: &str = include_str!("kernels.metal");
@@ -50,8 +53,7 @@ impl MetalKernel {
 pub struct KernelManager {
     device: Retained<ProtocolObject<dyn MTLDevice>>,
     library: Retained<ProtocolObject<dyn MTLLibrary>>,
-    pipelines:
-        Mutex<HashMap<MetalKernel, Retained<ProtocolObject<dyn MTLComputePipelineState>>>>,
+    pipelines: Mutex<HashMap<MetalKernel, Retained<ProtocolObject<dyn MTLComputePipelineState>>>>,
 }
 
 impl KernelManager {

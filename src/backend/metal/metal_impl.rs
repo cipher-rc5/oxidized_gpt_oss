@@ -1,4 +1,9 @@
-use anyhow::{anyhow, Result};
+// file: src/backend/metal/metal_impl.rs
+// description: Native Metal backend with device management, buffers, and kernel dispatch wrappers.
+// author: cipher-rc5
+// created: 2026-02-21
+// modified: 2026-02-21
+use anyhow::{Result, anyhow};
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2_metal::{

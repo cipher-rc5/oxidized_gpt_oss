@@ -1,6 +1,7 @@
 # notes
 
 ## commands
+
 ```bash
 repomix --style markdown -o _v07-llm.md --verbose --parsable-style --no-file-summary --include src,Cargo.toml
 ```
@@ -24,17 +25,12 @@ oxidized_gpt_oss/gpt-oss-20b-MXFP4-Q8 on  master [?]
 1 directory, 9 files
 ```
 
-
 cd /Users/excalibur/Desktop/dev/oxidized_gpt_oss && cargo run -- --model-path /Users/excalibur/Desktop/dev/oxidized_gpt_oss/gpt-oss-20b-MXFP4-Q8 --max-tokens 20 2>&1 | tail -50
-
 
 cd /Users/excalibur/Desktop/dev/oxidized_gpt_oss && cargo run -- --model-path /Users/excalibur/Desktop/dev/oxidized_gpt_oss/gpt-oss-20b-MXFP4-Q8 --max-tokens 1 2>&1 | tail -5 &
 sleep 45
 pkill -f "cargo run"
 wait
-
-
-
 
 ```bash
 RUST_BACKTRACE=1 cargo run -- --model-path /Users/excalibur/Desktop/dev/oxidized_gpt_oss/gpt-oss-20b-MXFP4-Q8 --max-tokens 20 --prompt "Hello, world"
