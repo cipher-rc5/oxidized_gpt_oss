@@ -1,6 +1,6 @@
 # Oxidized GPT-OSS
 
-A high-performance Rust implementation of GPT-OSS inference optimized for Apple M3 Ultra with Metal GPU acceleration and advanced Mixture of Experts (MoE) support.
+Rust implementation of GPT-OSS inference optimized for Apple Metal GPU acceleration and advanced Mixture of Experts (MoE) support
 
 ## Features
 
@@ -24,7 +24,7 @@ A high-performance Rust implementation of GPT-OSS inference optimized for Apple 
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/cipher-rc5/oxidized_gpt_oss
 cd oxidized_gpt_oss
 
 # Build in release mode with optimizations
