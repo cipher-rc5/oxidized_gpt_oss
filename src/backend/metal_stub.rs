@@ -1,8 +1,6 @@
 // file: src/backend/metal_stub.rs
 // description: Compatibility backend used when native Metal support is unavailable.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
 
 use anyhow::{Result, anyhow};
 use half::f16;

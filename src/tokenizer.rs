@@ -1,8 +1,6 @@
 // file: src/tokenizer.rs
 // description: Loads tokenizer.json and applies a minimal Harmony chat template and response parsing helpers.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
 
 use anyhow::Result;
 use std::path::Path;

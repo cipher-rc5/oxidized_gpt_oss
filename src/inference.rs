@@ -1,8 +1,6 @@
 // file: src/inference.rs
 // description: Runs prefill/decode generation with Harmony formatting, stop tokens, and sampling.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
 
 use anyhow::Result;
 use std::sync::Arc;

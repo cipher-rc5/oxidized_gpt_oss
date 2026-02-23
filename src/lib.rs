@@ -1,8 +1,7 @@
 // file: src/lib.rs
 // description: Crate module wiring and public exports for runtime, model, and inference entrypoints.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
+
 pub mod attention;
 pub mod backend;
 pub mod benchmark;

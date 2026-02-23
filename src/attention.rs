@@ -1,8 +1,6 @@
 // file: src/attention.rs
 // description: Attention-related data structures for grouped-query attention and KV cache.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
 
 use candle_core::Tensor;
 

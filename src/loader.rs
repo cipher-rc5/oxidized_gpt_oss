@@ -1,8 +1,6 @@
 // file: src/loader.rs
 // description: Safetensors checkpoint loader with MXFP4 dequantization and BF16 tensor materialization.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
 
 use std::collections::{BTreeSet, HashMap};
 use std::fs::File;

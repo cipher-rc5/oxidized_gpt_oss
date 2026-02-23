@@ -1,8 +1,7 @@
 // file: src/config.rs
 // description: Model configuration parsing and validation helpers for gpt-oss checkpoints.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
+
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::fs::File;

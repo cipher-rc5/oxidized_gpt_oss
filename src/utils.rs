@@ -1,8 +1,6 @@
 // file: src/utils.rs
 // description: Utility helpers for buffer conversion, tensor math, and shape-safe operations.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
 
 use crate::backend::metal::{MetalBuffer, MetalDevice, StorageMode};
 use anyhow::Result;

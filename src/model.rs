@@ -1,8 +1,7 @@
 // file: src/model.rs
 // description: GPT model scaffolding, layer loading, and forward-pass execution over backend buffers.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
+
 use anyhow::{Context, Result};
 use candle_core::{DType, Device};
 use half::{bf16, f16};

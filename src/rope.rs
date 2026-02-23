@@ -1,8 +1,6 @@
 // file: src/rope.rs
 // description: Rotary positional embedding helpers for gpt-oss style RoPE application.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
 
 pub struct RopeCache {
     pub cos: Vec<f32>,

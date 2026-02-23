@@ -1,8 +1,6 @@
 // file: src/memory.rs
 // description: Memory usage tracking, pooling, and cleanup utilities for runtime execution.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
 
 use anyhow::Result;
 use std::collections::HashMap;

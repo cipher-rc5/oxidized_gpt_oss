@@ -1,8 +1,6 @@
 // file: src/sampler.rs
 // description: Implements greedy and nucleus sampling over logits.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
 
 use anyhow::Result;
 

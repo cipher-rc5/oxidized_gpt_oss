@@ -1,8 +1,6 @@
 // file: src/mxfp4.rs
 // description: MXFP4 E2M1 dequantization routines and tests for MoE checkpoint weights.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
 
 use half::bf16;
 

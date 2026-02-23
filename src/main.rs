@@ -1,8 +1,6 @@
 // file: src/main.rs
 // description: CLI entrypoint for gpt-oss-20b loading, tensor listing, single prompt generation, and interactive mode.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
 
 use anyhow::Result;
 use candle_core::Device;

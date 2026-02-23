@@ -1,8 +1,7 @@
 // file: src/moe.rs
 // description: Mixture-of-Experts routing and weighted expert aggregation runtime.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
+
 use crate::backend::metal::{MetalBuffer, MetalCompute};
 use crate::model::MLP;
 use crate::utils::{buffer_from_f32, buffer_to_f32_vec, matmul, softmax_inplace};

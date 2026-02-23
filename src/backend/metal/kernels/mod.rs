@@ -1,8 +1,7 @@
 // file: src/backend/metal/kernels/mod.rs
 // description: Embedded Metal shader registry and compute pipeline cache.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
+
 use std::collections::HashMap;
 use std::sync::Mutex;
 

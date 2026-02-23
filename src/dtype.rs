@@ -1,8 +1,7 @@
 // file: src/dtype.rs
 // description: Low-precision quantization data types and packing helpers.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
+
 use bytemuck::{Pod, Zeroable};
 use half::f16;
 use std::fmt;

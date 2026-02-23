@@ -1,8 +1,7 @@
 // file: src/benchmark.rs
 // description: Benchmark timing and throughput helpers for generation metrics.
 // author: cipher-rc5
-// created: 2026-02-21
-// modified: 2026-02-21
+
 use std::time::{Duration, Instant};
 use tracing::info;
 
