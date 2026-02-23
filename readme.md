@@ -1,6 +1,7 @@
 # Oxidized GPT-OSS
 
-Rust/Candle inference runner for `openai/gpt-oss-20b` with MXFP4 checkpoint loading and Harmony-formatted prompting.
+Rust/Candle inference runner for `openai/gpt-oss-20b` with MXFP4 checkpoint loading and Harmony-formatted prompting.   
+THIS UNIT IS NOT PRODUCTION GRADE AND SHOULD NOT BE USED IN ANY CAPACITY, ITS STRICTLY FOR LEARNING THE INTERNALS OF GPT-OSS
 
 ## Download Weights
 
